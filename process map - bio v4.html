@@ -1,0 +1,238 @@
+<html>
+<head>
+
+    <title>Process map - Cell characteristics</title>
+    <h1>Process map - Cell characteristics</h1>
+
+    <style>
+        #custom_tooltip {
+            display: none;
+            position: absolute;
+            padding: 5px;
+            border: 1px solid rgba(0, 0, 0, 0.25);
+            border-radius: 5px;
+            background: white;
+            box-shadow: 1px 4px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        ul {
+            margin: 0;
+            list-style: none;
+        }
+
+    </style>
+
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script src="https://twitter.github.com/hogan.js/builds/3.0.1/hogan-3.0.1.js"></script>
+
+</head>
+
+<body>
+
+<div id="dashboard_div"></div>
+<div id="sportFilter_div"></div>
+<div id="rBubble_div"></div>
+<div id="custom_tooltip"></div>
+
+<script type="text/javascript">
+
+    var COLUMN_INDICES = {
+        REF_TITLE: 0,
+        TOTAL_CELL_YIELD: 1,
+        EXPANSION_FACTOR: 2,
+        GROWTH_SURFACE: 8,
+        MEDIUM: 9,
+        CELLTYPE: 3,
+        PROTEIN: 10,
+        PDT: 13,
+        LINK: 12
+    };
+
+    google.load('visualization', '1.0', {packages: ['corechart', 'controls']});
+    google.setOnLoadCallback(drawDashboard);
+
+    function drawDashboard() {
+        var query = new google.visualization.Query('https://docs.google.com/spreadsheets/d/1JKuS4O3lY9Km5rlh5HFqb7guT78g_ACGD5q1xUHIxqM/edit?usp=sharing');
+        query.send(handleQueryResponse);
+    }
+
+    function handleQueryResponse(response) {
+        if (response.isError()) {
+            alert('Error in query: ' + response.getMessage() + ' ' + response.getDetailedMessage());
+            return;
+        }
+
+        var data = response.getDataTable();
+        var writerFilter = createWriterFilter('sportFilter_div');
+        var rBubbleChart = createBubbleChart('rBubble_div');
+        var tooltip = createCustomTooltip('custom_tooltip', rBubbleChart);
+        var dashboard = createDashboard('dashboard_div', writerFilter, rBubbleChart, tooltip);
+
+        dashboard.draw(data);
+    }
+
+    function createWriterFilter(containerId) {
+        return new google.visualization.ControlWrapper({
+            controlType: 'CategoryFilter',
+            containerId: containerId,
+            options: {
+                filterColumnIndex: COLUMN_INDICES.CELLTYPE,
+                ui: {
+                    labelStacking: 'vertical',
+                    selectedValuesLayout: 'belowWrapping',
+                    allowTyping: true,
+                    caption: 'Select cell type...'
+                }
+            }
+        });
+    }
+
+    function createBubbleChart(containerId) {
+        return new google.visualization.ChartWrapper({
+            chartType: 'BubbleChart',
+            containerId: containerId,
+            options: {
+                title: '      ',
+                height: 600,
+                width: 1000,
+                chartArea: {left: '7%', top: '5%', width: '75%', height: '85%'},
+                backgroundColor: 'transparent',
+                hAxis: {
+                    minValue: 0,
+                    maxValue: 19000000000,
+                    logScale: 'true',
+                    ticks: [1.0E+06, 1.0E+07, 1.0E+08, 1.0E+09, 1.0E+10],
+                    baseline: 1000000,
+                    format: '#,###',
+                    baselineColor: '#BDBDBD',
+                    gridlines: {count: 15, color: 'transparent'},
+                    title: 'Process scale (cell yield)',
+                    titleTextStyle: {fontSize: 20, color: '#585858'},
+                    textStyle: {fontSize: 15, color: '#585858'}
+                },
+                vAxis: {
+                    minValue: 0,
+                    maxValue: 4000,
+                    format: '#,###',
+                    logScale: 'true',
+                    ticks: [10, 100, 1000],
+                    baseline: 1,
+                    baselineColor: '#BDBDBD',
+                    gridlines: {count: 20, color: 'transparent'},
+                    title: 'Expansion factor',
+                    titleTextStyle: {fontSize: 20, color: '#585858'},
+                    textStyle: {fontSize: 15, color: '#585858'}
+                },
+                bubble: {
+                    opacity: 0.65,
+                    stroke: 'transparent',
+                    textStyle: {fontSize: 1, color: 'transparent', auraColor: 'none'},
+                    sizeAxis: {minSize: 1, minValue: 1, maxSize: 10}
+                },
+                tooltip: {
+                    trigger: 'none'
+                },
+                legend: {position: 'top'},
+                animation: {duration: 0, easing: 'out'}
+            },
+            view: {columns: [0, 1, 2, 14, 13]}
+        });
+    }
+
+    function createDashboard(containerId, writerFilter, bubbleChart, tooltip) {
+        var dashboard = new google.visualization.Dashboard(document.getElementById(containerId));
+
+        dashboard.bind(writerFilter, bubbleChart);
+        google.visualization.events.addListener(dashboard, 'ready', function () {
+            google.visualization.events.addListener(bubbleChart.getChart(), 'onmouseover', tooltip.show);
+            google.visualization.events.addListener(bubbleChart.getChart(), 'onmouseout', tooltip.hide);
+        });
+
+        return dashboard;
+    }
+
+    function createCustomTooltip(elementId,  bubbleChart) {
+        var $tooltip = $('#' + elementId);
+        var mouseX;
+        var mouseY;
+        var template = createTooltipTemplate();
+        var blockFadeOut = false;
+
+        $(document).mousemove(function (e) {
+            mouseX = e.pageX;
+            mouseY = e.pageY;
+        });
+
+        $tooltip.on('mouseover', function (e) {
+            blockFadeOut = true;
+        });
+
+        $tooltip.on('mouseleave', function (e) {
+            blockFadeOut = false;
+            hide();
+        });
+
+        return {
+            show: show,
+            hide: hide
+        };
+
+
+        function show(event) {
+            var values = getValues(event.row);
+
+            $tooltip.html(template.render(values)).css({
+                'top': mouseY,
+                'left': mouseX
+            }).fadeIn('fast');
+        }
+
+        function hide() {
+            if (!blockFadeOut) {
+                $tooltip.fadeOut('fast');
+            }
+        }
+
+        function getValues(row) {
+            var data = bubbleChart.getDataTable();
+            return {
+                reftitle: data.getValue(row, COLUMN_INDICES.REF_TITLE),
+                totalCellYield: data.getValue(row, COLUMN_INDICES.TOTAL_CELL_YIELD),
+                expansionFactor: data.getValue(row, COLUMN_INDICES.EXPANSION_FACTOR),
+                growthSurface: data.getValue(row, COLUMN_INDICES.GROWTH_SURFACE),
+                medium: data.getValue(row, COLUMN_INDICES.MEDIUM),
+                celltype: data.getValue(row, COLUMN_INDICES.CELLTYPE),
+                protein: data.getValue(row, COLUMN_INDICES.PROTEIN),
+                popdt: data.getValue(row, COLUMN_INDICES.PDT),
+                link: data.getValue(row, COLUMN_INDICES.LINK)
+            };
+        }
+    }
+
+    function createTooltipTemplate() {
+        return Hogan.compile([
+            '<ul>',
+            '<li><label>Article:</label> {{reftitle}}</li>',
+            '<li><label>Total Cell Yield:</label> {{totalCellYield}}</li>',
+            '<li><label>Expansion Factor:</label> {{expansionFactor}}</li>',
+            '<li><label>Cell type:</label> {{celltype}}</li>',
+            '<li><label>Growth Surface:</label> {{growthSurface}}</li>',
+            '<li><label>Protein source:</label> {{protein}}</li>',
+            '<li><label>Medium:</label> {{medium}}</li>',
+            '<li><label>Population doubling time:</label> {{popdt}}</li>',
+            '<li><a href="{{link}}" target="_blank" rel="noopener">Link to reference.</a></li>',
+            '</ul>'
+        ].join(''));
+    }
+</script>
+
+<div id="legend"><img src="legend3.png" height="77.5" width="547" align = middle></div>
+<div <p><small>All rights reserved &#169 Prometheus, KU Leuven, 2016</small></div>
+
+</body>
+</html>
