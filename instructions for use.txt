@@ -1,6 +1,0 @@
-1. Download complete folder (there is a download button somewhere above the files)
-2. Unzip folder
-3. Double click html file(s), make sure your computer has access to the internet so the latest data can be loaded from the database.
-4. play around!
-
-For questions or if you want to add your article with process data to the database please contact ioannis.papantoniou@kuleuven.be.
